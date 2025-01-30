@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import csv
-import time  # For adding delays between requests
+import time
 
 # Function to scrape job listings from Indeed
 def scrape_indeed_jobs(query, location, num_pages=1):
@@ -26,7 +26,7 @@ def scrape_indeed_jobs(query, location, num_pages=1):
             }
             
             try:
-                response = session.get(base_url, params=params)
+                response = session.get(base_url, params=params, timeout=10)  # Add timeout
                 response.raise_for_status()  # Raise an error for bad status codes
             except requests.RequestException as e:
                 st.error(f"Error fetching data: {e}")
@@ -36,19 +36,23 @@ def scrape_indeed_jobs(query, location, num_pages=1):
             job_listings = soup.find_all('div', class_='job_seen_beacon')
             
             for job in job_listings:
-                title = job.find('h2', class_='jobTitle').text.strip()
-                company = job.find('span', class_='companyName').text.strip()
-                location = job.find('div', class_='companyLocation').text.strip()
-                summary = job.find('div', class_='job-snippet').text.strip()
-                link = 'https://www.indeed.com' + job.find('a')['href']
-                
-                jobs.append({
-                    'title': title,
-                    'company': company,
-                    'location': location,
-                    'summary': summary,
-                    'link': link
-                })
+                try:
+                    title = job.find('h2', class_='jobTitle').text.strip()
+                    company = job.find('span', class_='companyName').text.strip()
+                    location = job.find('div', class_='companyLocation').text.strip()
+                    summary = job.find('div', class_='job-snippet').text.strip()
+                    link = 'https://www.indeed.com' + job.find('a')['href']
+                    
+                    jobs.append({
+                        'title': title,
+                        'company': company,
+                        'location': location,
+                        'summary': summary,
+                        'link': link
+                    })
+                except AttributeError as e:
+                    st.warning(f"Skipping a job listing due to missing data: {e}")
+                    continue
             
             # Add a delay between requests to avoid detection
             time.sleep(2)  # Wait 2 seconds before the next request
@@ -57,14 +61,18 @@ def scrape_indeed_jobs(query, location, num_pages=1):
 
 # Function to save job listings to a CSV file
 def save_to_csv(jobs, filename='job_listings.csv'):
-    with open(filename, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.writer(file)
-        # Write the header
-        writer.writerow(['Title', 'Company', 'Location', 'Summary', 'Link'])
-        
-        # Write each job listing to the CSV file
-        for job in jobs:
-            writer.writerow([job['title'], job['company'], job['location'], job['summary'], job['link']])
+    try:
+        with open(filename, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # Write the header
+            writer.writerow(['Title', 'Company', 'Location', 'Summary', 'Link'])
+            
+            # Write each job listing to the CSV file
+            for job in jobs:
+                writer.writerow([job['title'], job['company'], job['location'], job['summary'], job['link']])
+        st.success(f"Job listings saved to '{filename}'.")
+    except Exception as e:
+        st.error(f"Error saving to CSV: {e}")
 
 # Streamlit app
 def main():
@@ -93,16 +101,18 @@ def main():
             
             # Save jobs to CSV
             save_to_csv(jobs)
-            st.success("Job listings saved to 'job_listings.csv'.")
             
             # Provide a download button for the CSV file
-            with open('job_listings.csv', 'rb') as f:
-                st.download_button(
-                    label="Download CSV",
-                    data=f,
-                    file_name='job_listings.csv',
-                    mime='text/csv',
-                )
+            try:
+                with open('job_listings.csv', 'rb') as f:
+                    st.download_button(
+                        label="Download CSV",
+                        data=f,
+                        file_name='job_listings.csv',
+                        mime='text/csv',
+                    )
+            except Exception as e:
+                st.error(f"Error creating download button: {e}")
         else:
             st.write("No jobs found.")
 

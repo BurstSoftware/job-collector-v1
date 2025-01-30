@@ -15,26 +15,30 @@ def scrape_indeed_jobs(query, location, num_pages=1):
             'start': page * 10  # Indeed shows 10 jobs per page
         }
         
-        response = requests.get(base_url, params=params)
+        try:
+            response = requests.get(base_url, params=params)
+            response.raise_for_status()  # Raise an error for bad status codes
+        except requests.RequestException as e:
+            st.error(f"Error fetching data: {e}")
+            return jobs
         
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            job_listings = soup.find_all('div', class_='job_seen_beacon')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        job_listings = soup.find_all('div', class_='job_seen_beacon')
+        
+        for job in job_listings:
+            title = job.find('h2', class_='jobTitle').text.strip()
+            company = job.find('span', class_='companyName').text.strip()
+            location = job.find('div', class_='companyLocation').text.strip()
+            summary = job.find('div', class_='job-snippet').text.strip()
+            link = 'https://www.indeed.com' + job.find('a')['href']
             
-            for job in job_listings:
-                title = job.find('h2', class_='jobTitle').text.strip()
-                company = job.find('span', class_='companyName').text.strip()
-                location = job.find('div', class_='companyLocation').text.strip()
-                summary = job.find('div', class_='job-snippet').text.strip()
-                link = 'https://www.indeed.com' + job.find('a')['href']
-                
-                jobs.append({
-                    'title': title,
-                    'company': company,
-                    'location': location,
-                    'summary': summary,
-                    'link': link
-                })
+            jobs.append({
+                'title': title,
+                'company': company,
+                'location': location,
+                'summary': summary,
+                'link': link
+            })
     
     return jobs
 
@@ -77,6 +81,15 @@ def main():
             # Save jobs to CSV
             save_to_csv(jobs)
             st.success("Job listings saved to 'job_listings.csv'.")
+            
+            # Provide a download button for the CSV file
+            with open('job_listings.csv', 'rb') as f:
+                st.download_button(
+                    label="Download CSV",
+                    data=f,
+                    file_name='job_listings.csv',
+                    mime='text/csv',
+                )
         else:
             st.write("No jobs found.")
 

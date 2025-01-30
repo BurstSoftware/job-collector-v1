@@ -5,7 +5,7 @@ import csv
 import time
 import random
 
-# Function to scrape job listings from Indeed using HTTP requests
+# Function to scrape job listings from Indeed
 def scrape_indeed_jobs(query, location, num_pages=1):
     base_url = 'https://www.indeed.com/jobs'
     jobs = []
@@ -16,6 +16,12 @@ def scrape_indeed_jobs(query, location, num_pages=1):
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
     ]
+    
+    # Proxy configuration
+    proxies = {
+        'http': 'http://your_proxy_address:port',
+        'https': 'http://your_proxy_address:port',
+    }
     
     # Use a session to maintain cookies and headers
     with requests.Session() as session:
@@ -36,7 +42,7 @@ def scrape_indeed_jobs(query, location, num_pages=1):
             }
             
             try:
-                response = session.get(base_url, params=params, timeout=10)
+                response = session.get(base_url, params=params, proxies=proxies, timeout=10)
                 response.raise_for_status()  # Raise an error for bad status codes
             except requests.RequestException as e:
                 st.error(f"Error fetching data: {e}")

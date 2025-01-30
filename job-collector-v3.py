@@ -1,52 +1,44 @@
 import streamlit as st
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
-import time
+from playwright.sync_api import sync_playwright
 import csv
+import time
+import random
 
-# Function to scrape job listings from Indeed using Selenium
+# Function to scrape job listings from Indeed using Playwright
 def scrape_indeed_jobs(query, location, num_pages=1):
     jobs = []
     
-    # Set up Selenium WebDriver
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')  # Run in headless mode (no browser UI)
-    options.add_argument('--disable-gpu')  # Disable GPU acceleration
-    options.add_argument('--no-sandbox')  # Disable sandboxing
-    options.add_argument('--disable-dev-shm-usage')  # Disable shared memory usage
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')  # Set user agent
-    
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    
-    try:
-        for page in range(num_pages):
-            url = f"https://www.indeed.com/jobs?q={query}&l={location}&start={page * 10}"
-            driver.get(url)
+    with sync_playwright() as p:
+        # Launch a headless browser
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        
+        for page_num in range(num_pages):
+            url = f"https://www.indeed.com/jobs?q={query}&l={location}&start={page_num * 10}"
+            page.goto(url)
             time.sleep(3)  # Wait for the page to load
             
             # Scroll to load all job listings
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight);")
             time.sleep(2)
             
             # Find job listings
-            job_listings = driver.find_elements(By.CSS_SELECTOR, 'div.job_seen_beacon')
+            job_listings = page.query_selector_all('div.job_seen_beacon')
             
             for job in job_listings:
                 try:
-                    title = job.find_element(By.CSS_SELECTOR, 'h2.jobTitle').text.strip()
-                    company = job.find_element(By.CSS_SELECTOR, 'span.companyName').text.strip()
-                    location = job.find_element(By.CSS_SELECTOR, 'div.companyLocation').text.strip()
-                    summary = job.find_element(By.CSS_SELECTOR, 'div.job-snippet').text.strip()
-                    link = job.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
+                    title = job.query_selector('h2.jobTitle').inner_text().strip()
+                    company = job.query_selector('span.companyName').inner_text().strip()
+                    location = job.query_selector('div.companyLocation').inner_text().strip()
+                    summary = job.query_selector('div.job-snippet').inner_text().strip()
+                    link = job.query_selector('a').get_attribute('href')
                     
                     jobs.append({
                         'title': title,
                         'company': company,
                         'location': location,
                         'summary': summary,
-                        'link': link
+                        'link': f"https://www.indeed.com{link}"
                     })
                 except Exception as e:
                     st.warning(f"Skipping a job listing due to missing data: {e}")
@@ -54,9 +46,8 @@ def scrape_indeed_jobs(query, location, num_pages=1):
             
             # Add a delay between pages to avoid detection
             time.sleep(random.uniform(2, 5))
-    
-    finally:
-        driver.quit()  # Close the browser
+        
+        browser.close()
     
     return jobs
 

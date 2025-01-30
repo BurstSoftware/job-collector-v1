@@ -1,57 +1,45 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import csv
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 import time
-import random
+import csv
 
-# Function to scrape job listings from Indeed
+# Function to scrape job listings from Indeed using Selenium
 def scrape_indeed_jobs(query, location, num_pages=1):
-    base_url = 'https://www.indeed.com/jobs'
     jobs = []
     
-    # List of user agents to rotate
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
-    ]
+    # Set up Selenium WebDriver
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')  # Run in headless mode (no browser UI)
+    options.add_argument('--disable-gpu')  # Disable GPU acceleration
+    options.add_argument('--no-sandbox')  # Disable sandboxing
+    options.add_argument('--disable-dev-shm-usage')  # Disable shared memory usage
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')  # Set user agent
     
-    # Use a session to maintain cookies and headers
-    with requests.Session() as session:
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
+    try:
         for page in range(num_pages):
-            # Rotate user agent
-            headers = {
-                'User-Agent': random.choice(user_agents),
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': 'https://www.indeed.com/',
-            }
-            session.headers.update(headers)
+            url = f"https://www.indeed.com/jobs?q={query}&l={location}&start={page * 10}"
+            driver.get(url)
+            time.sleep(3)  # Wait for the page to load
             
-            params = {
-                'q': query,
-                'l': location,
-                'start': page * 10  # Indeed shows 10 jobs per page
-            }
+            # Scroll to load all job listings
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
             
-            try:
-                response = session.get(base_url, params=params, timeout=10)
-                response.raise_for_status()  # Raise an error for bad status codes
-            except requests.RequestException as e:
-                st.error(f"Error fetching data: {e}")
-                return jobs
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            job_listings = soup.find_all('div', class_='job_seen_beacon')
+            # Find job listings
+            job_listings = driver.find_elements(By.CSS_SELECTOR, 'div.job_seen_beacon')
             
             for job in job_listings:
                 try:
-                    title = job.find('h2', class_='jobTitle').text.strip()
-                    company = job.find('span', class_='companyName').text.strip()
-                    location = job.find('div', class_='companyLocation').text.strip()
-                    summary = job.find('div', class_='job-snippet').text.strip()
-                    link = 'https://www.indeed.com' + job.find('a')['href']
+                    title = job.find_element(By.CSS_SELECTOR, 'h2.jobTitle').text.strip()
+                    company = job.find_element(By.CSS_SELECTOR, 'span.companyName').text.strip()
+                    location = job.find_element(By.CSS_SELECTOR, 'div.companyLocation').text.strip()
+                    summary = job.find_element(By.CSS_SELECTOR, 'div.job-snippet').text.strip()
+                    link = job.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
                     
                     jobs.append({
                         'title': title,
@@ -60,12 +48,15 @@ def scrape_indeed_jobs(query, location, num_pages=1):
                         'summary': summary,
                         'link': link
                     })
-                except AttributeError as e:
+                except Exception as e:
                     st.warning(f"Skipping a job listing due to missing data: {e}")
                     continue
             
-            # Add a random delay between 2 and 5 seconds
+            # Add a delay between pages to avoid detection
             time.sleep(random.uniform(2, 5))
+    
+    finally:
+        driver.quit()  # Close the browser
     
     return jobs
 
@@ -86,7 +77,6 @@ def save_to_csv(jobs, filename='job_listings.csv'):
 
 # Streamlit app
 def main():
-    st.write("App is running!")  # Debugging statement
     st.title("Indeed Job Scraper")
     
     # Input fields for job query and location

@@ -17,10 +17,10 @@ def scrape_indeed_jobs(query, location, num_pages=1):
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
     ]
     
-    # Proxy configuration
+    # Proxy configuration (replace with your proxy address and port)
     proxies = {
-        'http': 'http://your_proxy_address:port',
-        'https': 'http://your_proxy_address:port',
+        'http': 'http://123.456.789.10:8080',  # Replace with your proxy address and port
+        'https': 'http://123.456.789.10:8080',  # Replace with your proxy address and port
     }
     
     # Use a session to maintain cookies and headers

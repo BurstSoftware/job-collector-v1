@@ -69,4 +69,63 @@ def scrape_indeed_jobs(query, location, num_pages=1):
     
     return jobs
 
-# Rest of the code remains the same...
+# Function to save job listings to a CSV file
+def save_to_csv(jobs, filename='job_listings.csv'):
+    try:
+        with open(filename, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.writer(file)
+            # Write the header
+            writer.writerow(['Title', 'Company', 'Location', 'Summary', 'Link'])
+            
+            # Write each job listing to the CSV file
+            for job in jobs:
+                writer.writerow([job['title'], job['company'], job['location'], job['summary'], job['link']])
+        st.success(f"Job listings saved to '{filename}'.")
+    except Exception as e:
+        st.error(f"Error saving to CSV: {e}")
+
+# Streamlit app
+def main():
+    st.write("App is running!")  # Debugging statement
+    st.title("Indeed Job Scraper")
+    
+    # Input fields for job query and location
+    query = st.text_input("Enter job title or keywords:", "Software Engineer")
+    location = st.text_input("Enter location:", "New York, NY")
+    num_pages = st.slider("Number of pages to scrape:", 1, 10, 1)
+    
+    if st.button("Search Jobs"):
+        st.write(f"Searching for '{query}' jobs in '{location}'...")
+        
+        # Scrape jobs
+        jobs = scrape_indeed_jobs(query, location, num_pages)
+        
+        if jobs:
+            st.write(f"Found {len(jobs)} jobs:")
+            for i, job in enumerate(jobs, 1):
+                st.subheader(f"Job {i}: {job['title']}")
+                st.write(f"**Company:** {job['company']}")
+                st.write(f"**Location:** {job['location']}")
+                st.write(f"**Summary:** {job['summary']}")
+                st.write(f"**Link:** [Apply Here]({job['link']})")
+                st.write("---")
+            
+            # Save jobs to CSV
+            save_to_csv(jobs)
+            
+            # Provide a download button for the CSV file
+            try:
+                with open('job_listings.csv', 'rb') as f:
+                    st.download_button(
+                        label="Download CSV",
+                        data=f,
+                        file_name='job_listings.csv',
+                        mime='text/csv',
+                    )
+            except Exception as e:
+                st.error(f"Error creating download button: {e}")
+        else:
+            st.write("No jobs found.")
+
+if __name__ == "__main__":
+    main()
